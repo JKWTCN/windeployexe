@@ -4,7 +4,10 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include <filesystem>
+#include <shlwapi.h>
 #pragma comment(lib, "dbghelp.lib")
+#pragma comment(lib, "shlwapi.lib")
 
 // RAII包装器用于Windows句柄
 struct HandleGuard {
@@ -145,15 +148,183 @@ std::vector<std::string> GetDependentDLLs(const char *executablePath)
     return dllList;
 }
 
+// 获取系统目录路径
+std::string GetSystemDirectory() {
+    char systemDir[MAX_PATH];
+    GetSystemDirectoryA(systemDir, MAX_PATH);
+    return std::string(systemDir);
+}
+
+// 获取Windows目录路径
+std::string GetWindowsDirectory() {
+    char windowsDir[MAX_PATH];
+    GetWindowsDirectoryA(windowsDir, MAX_PATH);
+    return std::string(windowsDir);
+}
+
+// 获取环境变量PATH中的目录列表
+std::vector<std::string> GetPathDirectories() {
+    std::vector<std::string> pathDirs;
+    char* pathEnv;
+    size_t len;
+    _dupenv_s(&pathEnv, &len, "PATH");
+    
+    if (pathEnv) {
+        char* context = nullptr;
+        char* token = strtok_s(pathEnv, ";", &context);
+        while (token != nullptr) {
+            pathDirs.push_back(std::string(token));
+            token = strtok_s(nullptr, ";", &context);
+        }
+        free(pathEnv);
+    }
+    
+    return pathDirs;
+}
+
+// 搜索DLL文件
+std::string FindDLLFile(const std::string& dllName, const std::string& exeDir) {
+    // 首先在可执行文件目录中查找
+    std::string dllPath = exeDir + "\\" + dllName;
+    if (PathFileExistsA(dllPath.c_str())) {
+        return dllPath;
+    }
+    
+    // 在当前工作目录中查找
+    char currentDir[MAX_PATH];
+    GetCurrentDirectoryA(MAX_PATH, currentDir);
+    dllPath = std::string(currentDir) + "\\" + dllName;
+    if (PathFileExistsA(dllPath.c_str())) {
+        return dllPath;
+    }
+    
+    // 在系统目录中查找
+    dllPath = GetSystemDirectory() + "\\" + dllName;
+    if (PathFileExistsA(dllPath.c_str())) {
+        return dllPath;
+    }
+    
+    // 在Windows目录中查找
+    dllPath = GetWindowsDirectory() + "\\" + dllName;
+    if (PathFileExistsA(dllPath.c_str())) {
+        return dllPath;
+    }
+    
+    // 在PATH环境变量指定的目录中查找
+    auto pathDirs = GetPathDirectories();
+    for (const auto& dir : pathDirs) {
+        dllPath = dir + "\\" + dllName;
+        if (PathFileExistsA(dllPath.c_str())) {
+            return dllPath;
+        }
+    }
+    
+    return ""; // 未找到
+}
+
+// 复制文件
+bool CopyFileToDirectory(const std::string& sourcePath, const std::string& destDir) {
+    if (sourcePath.empty() || destDir.empty()) {
+        return false;
+    }
+    
+    // 确保目标目录存在
+    if (!CreateDirectoryA(destDir.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) {
+        std::cerr << "错误: 无法创建目标目录 " << destDir << " (错误代码: " << GetLastError() << ")" << std::endl;
+        return false;
+    }
+    
+    // 构造目标文件路径
+    std::string fileName = std::filesystem::path(sourcePath).filename().string();
+    std::string destPath = destDir + "\\" + fileName;
+    
+    // 检查目标文件是否已存在
+    if (PathFileExistsA(destPath.c_str())) {
+        std::cout << "警告: 文件已存在，跳过复制: " << fileName << std::endl;
+        return true;
+    }
+    
+    // 复制文件
+    if (CopyFileA(sourcePath.c_str(), destPath.c_str(), FALSE)) {
+        std::cout << "成功复制: " << fileName << std::endl;
+        return true;
+    } else {
+        std::cerr << "错误: 无法复制文件 " << fileName << " (错误代码: " << GetLastError() << ")" << std::endl;
+        return false;
+    }
+}
+
+// 复制所有依赖的DLL
+bool CopyDependentDLLs(const std::vector<std::string>& dllList, const std::string& exePath, const std::string& destDir) {
+    if (dllList.empty()) {
+        std::cout << "没有需要复制的DLL文件" << std::endl;
+        return true;
+    }
+    
+    // 获取可执行文件所在目录
+    std::string exeDir = std::filesystem::path(exePath).parent_path().string();
+    
+    std::cout << "\n开始复制DLL文件到目标目录: " << destDir << std::endl;
+    
+    int successCount = 0;
+    int failCount = 0;
+    
+    for (const auto& dllName : dllList) {
+        std::cout << "正在查找: " << dllName << std::endl;
+        
+        std::string dllPath = FindDLLFile(dllName, exeDir);
+        if (dllPath.empty()) {
+            std::cerr << "错误: 无法找到DLL文件: " << dllName << std::endl;
+            failCount++;
+            continue;
+        }
+        
+        std::cout << "找到DLL: " << dllPath << std::endl;
+        
+        if (CopyFileToDirectory(dllPath, destDir)) {
+            successCount++;
+        } else {
+            failCount++;
+        }
+    }
+    
+    std::cout << "\n复制完成: 成功 " << successCount << " 个，失败 " << failCount << " 个" << std::endl;
+    return failCount == 0;
+}
+
 int main(int argc, char* argv[])
 {
-    if (argc != 2) {
-        std::cout << "用法: " << argv[0] << " <可执行文件路径>" << std::endl;
-        std::cout << "示例: " << argv[0] << " C:\\Path\\To\\YourApp.exe" << std::endl;
+    if (argc < 2 || argc > 4) {
+        std::cout << "用法: " << argv[0] << " <可执行文件路径> [选项]" << std::endl;
+        std::cout << "选项:" << std::endl;
+        std::cout << "  --copy <目标目录>    复制依赖DLL到指定目录" << std::endl;
+        std::cout << "  --copy-exe-dir      复制依赖DLL到可执行文件所在目录" << std::endl;
+        std::cout << "示例:" << std::endl;
+        std::cout << "  " << argv[0] << " C:\\Path\\To\\YourApp.exe" << std::endl;
+        std::cout << "  " << argv[0] << " C:\\Path\\To\\YourApp.exe --copy C:\\DestDir" << std::endl;
+        std::cout << "  " << argv[0] << " C:\\Path\\To\\YourApp.exe --copy-exe-dir" << std::endl;
         return 1;
     }
 
     auto exe_path = argv[1];
+    bool copyMode = false;
+    std::string destDir;
+
+    // 解析命令行参数
+    if (argc > 2) {
+        if (strcmp(argv[2], "--copy") == 0 && argc == 4) {
+            copyMode = true;
+            destDir = argv[3];
+        } else if (strcmp(argv[2], "--copy-exe-dir") == 0) {
+            copyMode = true;
+            // 获取可执行文件所在目录
+            destDir = std::filesystem::path(exe_path).parent_path().string();
+        } else {
+            std::cerr << "错误: 无效的命令行参数" << std::endl;
+            return 1;
+        }
+    }
+
     auto dlls = GetDependentDLLs(exe_path);
     
     std::cout << "\n=== 依赖DLL列表 ===" << std::endl;
@@ -162,6 +333,17 @@ int main(int argc, char* argv[])
         std::cout << dll << std::endl;
     }
     std::cout << "总共: " << dlls.size() << " 个DLL" << std::endl;
+
+    // 如果启用了复制模式，则复制DLL文件
+    if (copyMode) {
+        std::cout << "\n=== 开始复制DLL文件 ===" << std::endl;
+        if (CopyDependentDLLs(dlls, exe_path, destDir)) {
+            std::cout << "所有DLL文件复制成功!" << std::endl;
+        } else {
+            std::cout << "部分DLL文件复制失败，请检查错误信息" << std::endl;
+            return 1;
+        }
+    }
     
     return 0;
 }
