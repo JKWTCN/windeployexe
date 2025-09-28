@@ -6,6 +6,8 @@
 #include <memory>
 #include <filesystem>
 #include <shlwapi.h>
+#include <set>
+#include <algorithm>
 #pragma comment(lib, "dbghelp.lib")
 #pragma comment(lib, "shlwapi.lib")
 
@@ -162,6 +164,78 @@ std::string GetWindowsDirectory() {
     return std::string(windowsDir);
 }
 
+// 系统核心DLL列表
+const std::set<std::string> systemCoreDLLs = {
+    "KERNEL32.dll",
+    "KERNEL32.DLL",
+    "USER32.dll",
+    "USER32.DLL",
+    "GDI32.dll",
+    "GDI32.DLL",
+    "ADVAPI32.dll",
+    "ADVAPI32.DLL",
+    "SHELL32.dll",
+    "SHELL32.DLL",
+    "COMCTL32.dll",
+    "COMCTL32.DLL",
+    "COMDLG32.dll",
+    "COMDLG32.DLL",
+    "OLE32.dll",
+    "OLE32.DLL",
+    "OLEAUT32.dll",
+    "OLEAUT32.DLL",
+    "WS2_32.dll",
+    "WS2_32.DLL",
+    "WINSPOOL.DRV",
+    "WINSPOOL.drv",
+    "VERSION.dll",
+    "VERSION.DLL",
+    "IMM32.dll",
+    "IMM32.DLL",
+    "MSVCRT.dll",
+    "MSVCRT.DLL",
+    "MSVCR100.dll",
+    "MSVCR100.DLL",
+    "MSVCR110.dll",
+    "MSVCR110.DLL",
+    "MSVCR120.dll",
+    "MSVCR120.DLL",
+    "MSVCP100.dll",
+    "MSVCP100.DLL",
+    "MSVCP110.dll",
+    "MSVCP110.DLL",
+    "MSVCP120.dll",
+    "MSVCP120.DLL",
+    "UCRTBASE.dll",
+    "UCRTBASE.DLL",
+    "NTDLL.dll",
+    "NTDLL.DLL",
+    "CRYPT32.dll",
+    "CRYPT32.DLL",
+    "RPCRT4.dll",
+    "RPCRT4.DLL",
+    "SHLWAPI.dll",
+    "SHLWAPI.DLL"
+};
+
+// 判断DLL是否为系统核心DLL
+bool IsSystemCoreDLL(const std::string& dllName) {
+    // 转换为大写进行比较
+    std::string upperDllName = dllName;
+    std::transform(upperDllName.begin(), upperDllName.end(), upperDllName.begin(), ::toupper);
+    
+    // 检查是否在系统核心DLL列表中
+    for (const auto& systemDll : systemCoreDLLs) {
+        std::string upperSystemDll = systemDll;
+        std::transform(upperSystemDll.begin(), upperSystemDll.end(), upperSystemDll.begin(), ::toupper);
+        if (upperDllName == upperSystemDll) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 // 获取环境变量PATH中的目录列表
 std::vector<std::string> GetPathDirectories() {
     std::vector<std::string> pathDirs;
@@ -265,12 +339,21 @@ bool CopyDependentDLLs(const std::vector<std::string>& dllList, const std::strin
     std::string exeDir = std::filesystem::path(exePath).parent_path().string();
     
     std::cout << "\n开始复制DLL文件到目标目录: " << destDir << std::endl;
+    std::cout << "注意: 系统核心DLL(如KERNEL32.dll等)将被自动跳过，因为这些是Windows系统自带的DLL" << std::endl;
     
     int successCount = 0;
     int failCount = 0;
+    int skippedCount = 0;
     
     for (const auto& dllName : dllList) {
         std::cout << "正在查找: " << dllName << std::endl;
+        
+        // 检查是否为系统核心DLL
+        if (IsSystemCoreDLL(dllName)) {
+            std::cout << "[系统核心DLL] 跳过: " << dllName << " (这是Windows系统自带的DLL，不需要复制)" << std::endl;
+            skippedCount++;
+            continue;
+        }
         
         std::string dllPath = FindDLLFile(dllName, exeDir);
         if (dllPath.empty()) {
@@ -288,7 +371,7 @@ bool CopyDependentDLLs(const std::vector<std::string>& dllList, const std::strin
         }
     }
     
-    std::cout << "\n复制完成: 成功 " << successCount << " 个，失败 " << failCount << " 个" << std::endl;
+    std::cout << "\n复制完成: 成功 " << successCount << " 个，失败 " << failCount << " 个，跳过系统核心DLL " << skippedCount << " 个" << std::endl;
     return failCount == 0;
 }
 
