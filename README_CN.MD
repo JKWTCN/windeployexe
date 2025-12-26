@@ -1,5 +1,7 @@
 # WinDeploy - Windows 依赖 DLL 分析与部署工具
 
+**中文** | [**English**](README.md)
+
 ## 项目简介
 
 WinDeploy 是一个命令行工具，用于分析 Windows 可执行文件（.exe）和动态链接库（.dll）的依赖关系，并可以选择性地将这些依赖的 DLL 文件复制到指定目录。该工具特别适用于 Windows 应用程序的部署和分发，帮助开发者收集所有必要的依赖库。

@@ -1,5 +1,7 @@
 # WinDeploy - Windows DLL Dependency Analysis and Deployment Tool
 
+[**中文**](README_CN.md) | **English**
+
 ## Introduction
 
 WinDeploy is a command-line tool for analyzing the DLL dependencies of Windows executable files (.exe) and dynamic-link libraries (.dll), with an option to copy these dependent DLL files to a specified directory. This tool is particularly useful for Windows application deployment and distribution, helping developers collect all necessary dependencies.
