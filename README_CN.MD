@@ -2,7 +2,7 @@
 
 ## 项目简介
 
-WinDeploy 是一个命令行工具，用于分析 Windows 可执行文件（.exe）的依赖 DLL，并可以选择性地将这些 DLL 文件复制到指定目录。该工具特别适用于 Windows 应用程序的部署和分发，帮助开发者收集所有必要的依赖库。
+WinDeploy 是一个命令行工具，用于分析 Windows 可执行文件（.exe）和动态链接库（.dll）的依赖关系，并可以选择性地将这些依赖的 DLL 文件复制到指定目录。该工具特别适用于 Windows 应用程序的部署和分发，帮助开发者收集所有必要的依赖库。
 
 ## 功能特点
 
@@ -56,6 +56,9 @@ cmake --build .
 ```bash
 # 分析可执行文件的依赖 DLL（仅第一层）
 win_deploy.exe C:\Path\To\YourApp.exe
+
+# 分析 DLL 文件的依赖
+win_deploy.exe C:\Path\To\YourLibrary.dll
 
 # 递归分析所有层级的依赖 DLL
 win_deploy.exe C:\Path\To\YourApp.exe --recursive
@@ -124,19 +127,20 @@ win_deploy.exe C:\Path\To\YourApp.exe --release --search-dirs search_paths.txt -
 ### 命令行参数
 
 ```
-用法: win_deploy.exe <可执行文件路径> [选项]
+用法: win_deploy.exe <可执行文件路径|DLL文件路径> [选项]
 
 选项:
-  --release [depth]     发布模式：递归分析依赖（默认深度：2）并复制到可执行文件所在目录
+  --release [depth]     发布模式：递归分析依赖（默认深度：2）并复制到文件所在目录
   --recursive [depth]   递归分析所有 DLL 依赖（默认深度：20）
   --copy <目标目录>     复制依赖 DLL 到指定目录
-  --copy-exe-dir        复制依赖 DLL 到可执行文件所在目录
+  --copy-exe-dir        复制依赖 DLL 到文件所在目录
   --copy-all            复制所有 DLL（包括系统核心 DLL）
   --search-dirs <文件>  从文件加载额外的搜索目录（每行一个路径）
   --ignore-dll <文件>   从文件加载忽略列表（DLL 名称、路径或目录）
 
 示例:
   win_deploy.exe C:\Path\To\YourApp.exe
+  win_deploy.exe C:\Path\To\YourLibrary.dll
   win_deploy.exe C:\Path\To\YourApp.exe --release
   win_deploy.exe C:\Path\To\YourApp.exe --release 3
   win_deploy.exe C:\Path\To\YourApp.exe --recursive
@@ -157,12 +161,12 @@ win_deploy.exe C:\Path\To\YourApp.exe --release --search-dirs search_paths.txt -
 
 ## 工作原理
 
-1. **PE 文件分析**：工具读取可执行文件的 PE 头，解析导入表（Import Directory）和延迟加载导入表，获取所有依赖的 DLL 名称。
+1. **PE 文件分析**：工具读取可执行文件或 DLL 的 PE 头，解析导入表（Import Directory）和延迟加载导入表，获取所有依赖的 DLL 名称。
 2. **递归分析**：如果启用递归模式，工具会逐层分析每个依赖 DLL 的依赖关系，直到达到最大递归深度或所有依赖都被分析完毕。
 3. **DLL 搜索**：按照以下优先级顺序搜索 DLL 文件：
 
    - **额外指定的搜索目录**（通过 `--search-dirs` 参数指定，优先级最高）
-   - 可执行文件所在目录
+   - 被分析文件所在目录
    - 当前工作目录
    - 系统目录（System32）
    - Windows 目录

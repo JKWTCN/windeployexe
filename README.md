@@ -1,21 +1,19 @@
-# WinDeploy - Windows Dependency DLL Analysis and Deployment Tool
+# WinDeploy - Windows DLL Dependency Analysis and Deployment Tool
 
-**[English](README.MD) | [中文](README_CN.MD)**
+## Introduction
 
-## Project Introduction
-
-WinDeploy is a command-line tool for analyzing the dependency DLLs of Windows executable files (.exe) and optionally copying these DLL files to a specified directory. This tool is particularly useful for the deployment and distribution of Windows applications, helping developers collect all necessary dependency libraries.
+WinDeploy is a command-line tool for analyzing the DLL dependencies of Windows executable files (.exe) and dynamic-link libraries (.dll), with an option to copy these dependent DLL files to a specified directory. This tool is particularly useful for Windows application deployment and distribution, helping developers collect all necessary dependencies.
 
 ## Features
 
-- Analyze PE headers of Windows executable files to extract the list of dependent DLLs
-- Support recursive analysis of all levels of DLL dependencies
-- Support searching for DLL files in multiple locations (executable directory, system directories, PATH environment variables, etc.)
+- Analyze PE headers of Windows executables and DLLs to extract lists of dependent DLLs
+- Support recursive analysis of DLL dependencies at all levels
+- Support searching for DLL files in multiple locations (executable directory, system directories, PATH environment variable, etc.)
 - Support loading additional search directories and ignore lists from files
-- Optionally copy dependent DLLs to a specified directory
-- Automatically identify and skip Windows system core DLLs (such as KERNEL32.dll, USER32.dll, etc.)
-- Support for x64 and x86 architecture PE files
-- Use RAII pattern to manage Windows resources, ensuring proper resource release
+- Option to copy dependent DLLs to a specified directory
+- Automatically identify and skip Windows core DLLs (such as KERNEL32.dll, USER32.dll, etc.)
+- Support both x64 and x86 architecture PE files
+- Use RAII pattern for Windows resource management, ensuring proper resource cleanup
 - Detailed error handling and log output
 
 ## Build Requirements
@@ -49,40 +47,43 @@ cmake .. -G "Ninja" -DCMAKE_BUILD_TYPE=Release
 cmake --build .
 ```
 
-After building, the executable file will be located in the `build/bin` directory.
+After building, the executable will be located in the `build/bin` directory.
 
 ## Usage
 
 ### Basic Usage
 
 ```bash
-# Analyze dependency DLLs of an executable (first level only)
+# Analyze executable file's dependent DLLs (first level only)
 win_deploy.exe C:\Path\To\YourApp.exe
 
-# Recursively analyze all levels of dependency DLLs
+# Analyze DLL file's dependencies
+win_deploy.exe C:\Path\To\YourLibrary.dll
+
+# Recursively analyze all levels of dependent DLLs
 win_deploy.exe C:\Path\To\YourApp.exe --recursive
 
-# Recursively analyze with specified maximum depth (default: 20)
+# Recursively analyze with specified maximum depth (default 20)
 win_deploy.exe C:\Path\To\YourApp.exe --recursive 10
 ```
 
 ### Release Mode
 
 ```bash
-# Release mode: Recursively analyze dependencies (depth: 2) and copy to executable's directory
+# Release mode: recursively analyze dependencies (depth 2) and copy to executable directory
 win_deploy.exe C:\Path\To\YourApp.exe --release
 
 # Release mode with specified recursion depth
 win_deploy.exe C:\Path\To\YourApp.exe --release 3
 ```
 
-### Copy Dependency DLLs
+### Copying Dependent DLLs
 
 ```bash
-# Copy dependency DLLs to a specified directory
+# Copy dependent DLLs to specified directory
 win_deploy.exe C:\Path\To\YourApp.exe --copy C:\DestDir
 
-# Copy dependency DLLs to the executable's directory
+# Copy dependent DLLs to executable file's directory
 win_deploy.exe C:\Path\To\YourApp.exe --copy-exe-dir
 
 # Copy all DLLs (including system core DLLs)
@@ -101,7 +102,7 @@ win_deploy.exe C:\Path\To\YourApp.exe --search-dirs search_paths.txt
 # # Lines starting with # or ; are treated as comments
 ```
 
-### Using Ignore List
+### Using Ignore Lists
 
 ```bash
 # Load ignore list from file
@@ -123,23 +124,23 @@ win_deploy.exe C:\Path\To\YourApp.exe --ignore-dll ignore.txt
 win_deploy.exe C:\Path\To\YourApp.exe --release --search-dirs search_paths.txt --ignore-dll ignore.txt
 ```
 
-### Command Line Arguments
+### Command Line Parameters
 
 ```
-Usage: win_deploy.exe <executable_path> [options]
+Usage: win_deploy.exe <executable_path|dll_path> [options]
 
 Options:
-  --release [depth]     Release mode: Recursively analyze dependencies (default depth: 2)
-                        and copy to the executable's directory
+  --release [depth]     Release mode: recursively analyze dependencies (default depth: 2) and copy to file's directory
   --recursive [depth]   Recursively analyze all DLL dependencies (default depth: 20)
-  --copy <target_dir>   Copy dependency DLLs to the specified directory
-  --copy-exe-dir        Copy dependency DLLs to the executable's directory
+  --copy <dest_dir>     Copy dependent DLLs to specified directory
+  --copy-exe-dir        Copy dependent DLLs to the file's directory
   --copy-all            Copy all DLLs (including system core DLLs)
   --search-dirs <file>  Load additional search directories from file (one path per line)
   --ignore-dll <file>   Load ignore list from file (DLL names, paths, or directories)
 
 Examples:
   win_deploy.exe C:\Path\To\YourApp.exe
+  win_deploy.exe C:\Path\To\YourLibrary.dll
   win_deploy.exe C:\Path\To\YourApp.exe --release
   win_deploy.exe C:\Path\To\YourApp.exe --release 3
   win_deploy.exe C:\Path\To\YourApp.exe --recursive
@@ -160,20 +161,18 @@ Examples:
 
 ## How It Works
 
-1. **PE File Analysis**: The tool reads the PE header of the executable file, parses the Import Directory and Delay Load Import Directory, and obtains all dependent DLL names.
-
-2. **Recursive Analysis**: If recursive mode is enabled, the tool will逐层 analyze the dependencies of each dependent DLL until the maximum recursion depth is reached or all dependencies are analyzed.
-
-3. **DLL Search**: Search for DLL files in the following priority order:
+1. **PE File Analysis**: The tool reads the PE header of the executable or DLL, parsing the Import Directory and Delay Import Directory to obtain all dependent DLL names.
+2. **Recursive Analysis**: If recursive mode is enabled, the tool analyzes the dependencies of each dependent DLL level by level until the maximum recursion depth is reached or all dependencies are analyzed.
+3. **DLL Search**: DLL files are searched in the following priority order:
 
    - **Additional specified search directories** (specified via `--search-dirs` parameter, highest priority)
-   - Executable file directory
+   - Directory of the analyzed file
    - Current working directory
    - System directory (System32)
    - Windows directory
-   - All directories in the PATH environment variable
+   - All directories in PATH environment variable
+4. **File Copying**: If copy options are specified, the tool copies found DLL files to the target directory:
 
-4. **File Copying**: If the copy option is specified, the tool will copy the found DLL files to the target directory:
    - Automatically identify and skip Windows system core DLLs (unless using `--copy-all`)
    - Skip DLLs in the ignore list
    - Automatically create target directory
@@ -183,9 +182,9 @@ Examples:
 
 - Use Windows API for file operations and PE file parsing
 - Implement RVA (Relative Virtual Address) to file offset conversion
-- Support parsing of regular import tables and delay load import tables
+- Support parsing both regular import tables and delay-load import tables
 - Use RAII pattern to manage Windows handles and memory-mapped views
-- Support detection of various PE file architectures (x64, x86)
+- Support detection of multiple PE file architectures (x64, x86)
 - Include complete error handling and boundary checks
 - Automatically detect system core DLL list, including KERNEL32, USER32, GDI32, ADVAPI32, etc.
 
@@ -204,18 +203,3 @@ windeployexe/
 ## License
 
 MIT
-
-## Contributing
-
-Bug reports and feature requests are welcome. If you want to contribute code, please ensure:
-
-1. Code follows the project's coding style
-2. Add appropriate comments and documentation
-3. Ensure the code compiles and runs correctly on the target platform
-
-## Contact
-
-For questions or suggestions, please contact through:
-
-- Create a GitHub Issue
-- Send an email to the project maintainer

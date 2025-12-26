@@ -398,6 +398,8 @@ std::string GetWindowsDirectory()
 }
 
 // 系统核心DLL列表
+// 注意：C++ 运行库 (MSVCR*.dll, MSVCP*.dll, UCRTBASE.dll, VCRUNTIME*.dll, VCCORLIB*.dll)
+// 不在此列表中，需要被复制
 const std::set<std::string> systemCoreDLLs = {
     "KERNEL32.dll",
     "KERNEL32.DLL",
@@ -425,22 +427,6 @@ const std::set<std::string> systemCoreDLLs = {
     "VERSION.DLL",
     "IMM32.dll",
     "IMM32.DLL",
-    "MSVCRT.dll",
-    "MSVCRT.DLL",
-    "MSVCR100.dll",
-    "MSVCR100.DLL",
-    "MSVCR110.dll",
-    "MSVCR110.DLL",
-    "MSVCR120.dll",
-    "MSVCR120.DLL",
-    "MSVCP100.dll",
-    "MSVCP100.DLL",
-    "MSVCP110.dll",
-    "MSVCP110.DLL",
-    "MSVCP120.dll",
-    "MSVCP120.DLL",
-    "UCRTBASE.dll",
-    "UCRTBASE.DLL",
     "NTDLL.dll",
     "NTDLL.DLL",
     "CRYPT32.dll",
@@ -478,10 +464,63 @@ bool IsSystemCoreDLL(const std::string &dllName)
     return false;
 }
 
+// 检查是否为 C++ 运行库 DLL
+bool IsCppRuntimeDLL(const std::string &dllName)
+{
+    // 转换为大写进行比较
+    std::string upperDllName = dllName;
+    std::transform(upperDllName.begin(), upperDllName.end(), upperDllName.begin(), ::toupper);
+
+    // 检查是否为 C 运行库 (MSVCR*.dll, VCRUNTIME*.dll)
+    if (upperDllName.find("MSVCR") == 0 && upperDllName.find(".DLL") == upperDllName.length() - 4)
+    {
+        return true;
+    }
+    if (upperDllName.find("VCRUNTIME") == 0 && upperDllName.find(".DLL") == upperDllName.length() - 4)
+    {
+        return true;
+    }
+
+    // 检查是否为 C++ 标准库 (MSVCP*.dll)
+    if (upperDllName.find("MSVCP") == 0 && upperDllName.find(".DLL") == upperDllName.length() - 4)
+    {
+        return true;
+    }
+
+    // 检查是否为 C++/CX 库 (VCCORLIB*.dll)
+    if (upperDllName.find("VCCORLIB") == 0 && upperDllName.find(".DLL") == upperDllName.length() - 4)
+    {
+        return true;
+    }
+
+    // 检查是否为 Universal C Runtime (UCRTBASE.dll)
+    if (upperDllName == "UCRTBASE.DLL")
+    {
+        return true;
+    }
+
+    // 检查是否为 ConcRT 库 (CONCRT*.dll)
+    if (upperDllName.find("CONCRT") == 0 && upperDllName.find(".DLL") == upperDllName.length() - 4)
+    {
+        return true;
+    }
+
+    return false;
+}
+
 // 判断DLL路径是否位于系统核心目录
 bool IsSystemDirectory(const std::string &dllPath)
 {
     if (dllPath.empty())
+    {
+        return false;
+    }
+
+    // 提取 DLL 文件名
+    std::string dllName = std::filesystem::path(dllPath).filename().string();
+
+    // 如果是 C++ 运行库，即使位于系统目录也不跳过
+    if (IsCppRuntimeDLL(dllName))
     {
         return false;
     }

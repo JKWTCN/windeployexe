@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.10)
 string(TIMESTAMP PROJECT_YEAR "%Y")
 
 project(win_deploy
-    VERSION 1.1.0.0
+    VERSION 1.1.1.0
     DESCRIPTION "Windows DLL dependency analyzer and deployment tool"
     LANGUAGES CXX
 )
@@ -12,7 +12,7 @@ project(win_deploy
 # Project version configuration (explicit for flexibility)
 set(PROJECT_VERSION_MAJOR 1)
 set(PROJECT_VERSION_MINOR 1)
-set(PROJECT_VERSION_PATCH 0)
+set(PROJECT_VERSION_PATCH 1)
 set(PROJECT_VERSION_TWEAK 0)
 set(PROJECT_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}.${PROJECT_VERSION_TWEAK}")
 set(PROJECT_NAME "win_deploy")
